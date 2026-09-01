@@ -1,0 +1,2 @@
+# Place hmeq.csv in this directory.
+# See README or run: curl -o data/raw/hmeq.csv https://raw.githubusercontent.com/sassoftware/sas-viya-dmml-pipelines/master/data/hmeq.csv

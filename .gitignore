@@ -11,7 +11,14 @@ __pycache__/
 artifacts/*
 !artifacts/.gitkeep
 
-data/*
+# Dataset files — never commit raw CSV data to the repository
+data/raw/*.csv
+data/processed/*.csv
+data/*.csv
+
+# Preserve directory placeholders
 !data/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
 
 .streamlit/secrets.toml

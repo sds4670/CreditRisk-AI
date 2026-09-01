@@ -1,0 +1,19 @@
+# Docker ignore rules for CreditRisk AI
+.git
+.gitignore
+.github
+.idea
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.venv
+venv
+env
+ENV
+tmp
+.streamlit/secrets.toml
+data/processed/
+*.log

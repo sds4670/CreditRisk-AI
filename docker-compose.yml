@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  creditrisk-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: creditrisk-api
+    ports:
+      - "8000:8000"
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - CREDITRISK_API_KEY=${CREDITRISK_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  creditrisk-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: creditrisk-dashboard
+    ports:
+      - "8501:8501"
+    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    environment:
+      - CREDITRISK_API_KEY=${CREDITRISK_API_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      - creditrisk-api

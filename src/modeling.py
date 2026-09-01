@@ -189,3 +189,58 @@ def load_artifacts(model_path: Path, metadata_path: Path) -> tuple[Pipeline, dic
     pipeline = joblib.load(model_path)
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     return pipeline, metadata
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 helpers: shared-split comparison primitives
+# ---------------------------------------------------------------------------
+
+
+def build_pipeline(X_sample: pd.DataFrame, model_name: str, random_state: int = 42) -> Pipeline:
+    """Create an *unfitted* sklearn Pipeline for the given feature matrix structure.
+
+    The preprocessor column sets (numeric vs categorical) are inferred from
+    ``X_sample``'s dtypes.  Because the column structure is stable across
+    train/test splits of the same DataFrame, the pipeline can safely be built
+    once on X_train and then cloned by ``cross_val_score`` for CV folds.
+
+    Parameters
+    ----------
+    X_sample:
+        Representative feature matrix (typically X_train).  Used only to
+        detect column types — no statistics are fitted here.
+    model_name:
+        ``"logistic"`` or ``"xgboost"``.
+    random_state:
+        Passed to the estimator for reproducibility.
+
+    Returns
+    -------
+    Pipeline
+        Unfitted ``Pipeline(preprocessor, model)``.
+    """
+    preprocessor = _build_preprocessor(X_sample)
+    _, estimator = _build_estimator(model_name=model_name, random_state=random_state)
+    return Pipeline(steps=[("preprocessor", preprocessor), ("model", estimator)])
+
+
+def fit_pipeline(pipeline: Pipeline, X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
+    """Fit and return a pipeline on the provided training data.
+
+    This is a thin wrapper that makes the fit step explicit in the comparison
+    script so the reader can see clearly that fitting uses only X_train / y_train.
+
+    Parameters
+    ----------
+    pipeline:
+        Unfitted pipeline, e.g. from ``build_pipeline()``.
+    X_train, y_train:
+        Training features and labels from the shared split.
+
+    Returns
+    -------
+    Pipeline
+        The same pipeline object, now fitted.
+    """
+    pipeline.fit(X_train, y_train)
+    return pipeline

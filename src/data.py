@@ -1,3 +1,14 @@
+"""Shared data-preparation utilities for CreditRisk AI.
+
+Production workflow
+-------------------
+The production pipeline uses the HMEQ dataset loaded via
+``src.dataset_loader.load_hmeq``.  The functions
+``create_demo_dataset`` and ``load_or_create_dataset`` in this module
+are **legacy / testing-only** utilities retained for the Streamlit demo
+mode and backward compatibility.  They must NOT be called from the main
+HMEQ training pipeline.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,12 +47,22 @@ ALIAS_MAP: dict[str, list[str]] = {
 }
 
 NON_FEATURE_COLUMNS: set[str] = {
+    # Generic target / label columns
     "target",
+    "bad",            # HMEQ target column (BAD = 1 → bad/defaulted loan)
+    # Status / administrative columns
     "loan_status",
     "status",
     "issue_date",
     "id",
     "member_id",
+    # Legacy demo-only columns (not in HMEQ; injected by prepare_portfolio_frame)
+    "loan_amnt",      # Always NaN for HMEQ — exclude from feature matrix
+    # BUG FIX: days_past_due is synthesised from the target by prepare_portfolio_frame
+    # when the column is absent (HMEQ has no DPD column).  Including it in features
+    # would give the model a synthetic proxy for the label — direct data leakage.
+    "days_past_due",
+    # Columns added by the scoring pipeline (post-prediction)
     "predicted_default",
     "default_probability",
     "risk_segment",
@@ -203,7 +224,14 @@ def prepare_features(
     return X, feature_columns
 
 
-def create_demo_dataset(n_rows: int = 5000, random_state: int = 42) -> pd.DataFrame:
+def create_demo_dataset(n_rows: int = 5000, random_state: int = 42) -> pd.DataFrame:  # noqa: E501
+    # ------------------------------------------------------------------ #
+    # LEGACY / TESTING ONLY                                               #
+    # This function generates a fully SYNTHETIC dataset using a           #
+    # hand-coded logistic risk signal.  It is retained for the Streamlit  #
+    # demo mode only.  Do NOT use this as the main training dataset.      #
+    # The production workflow uses src.dataset_loader.load_hmeq().        #
+    # ------------------------------------------------------------------ #
     rng = np.random.default_rng(random_state)
 
     loan_amnt = rng.integers(2_000, 45_000, size=n_rows)
@@ -294,6 +322,13 @@ def create_demo_dataset(n_rows: int = 5000, random_state: int = 42) -> pd.DataFr
 def load_or_create_dataset(
     dataset_path: Path, demo_rows: int = 5000, random_state: int = 42
 ) -> pd.DataFrame:
+    # ------------------------------------------------------------------ #
+    # LEGACY / TESTING ONLY                                               #
+    # Falls back to generating a synthetic dataset when the CSV is        #
+    # absent.  This behaviour is intentionally disabled in the production #
+    # HMEQ pipeline (src.training.train_and_persist).  Use this function  #
+    # only for the Streamlit demo mode or local quick tests.              #
+    # ------------------------------------------------------------------ #
     if dataset_path.exists():
         return pd.read_csv(dataset_path)
 

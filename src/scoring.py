@@ -5,31 +5,55 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 
 from src.data import prepare_features, prepare_portfolio_frame
+from src.ecl import calculate_portfolio_ecl, DEFAULT_LGD
+from src.features import engineer_features
 
-RISK_BINS = [-0.001, 0.10, 0.25, 0.40, 1.00]
+RISK_BINS = [-0.001, 0.10, 0.25, 0.50, 1.00]
 RISK_LABELS = ["Low", "Moderate", "High", "Very High"]
 
 
 def score_portfolio(
-    raw_df: pd.DataFrame, pipeline: Pipeline, feature_columns: list[str]
+    raw_df: pd.DataFrame,
+    pipeline: Pipeline,
+    feature_columns: list[str],
+    lgd_val: float = DEFAULT_LGD,
+    threshold: float = 0.50,
 ) -> pd.DataFrame:
-    portfolio = prepare_portfolio_frame(raw_df)
+    """Score raw portfolio DataFrame using trained pipeline and calculate ECL."""
+    # Ensure column names are lowercased
+    clean_df = raw_df.copy()
+    clean_df.columns = [str(c).strip().lower() for c in clean_df.columns]
+
+    # Run feature engineering
+    enriched = engineer_features(clean_df)
+
+    # Run portfolio frame preparation
+    portfolio = prepare_portfolio_frame(enriched)
     X, _ = prepare_features(portfolio, feature_columns=feature_columns)
 
     probabilities = pipeline.predict_proba(X)[:, 1]
     scored = portfolio.copy()
     scored["default_probability"] = np.round(probabilities, 4)
-    scored["predicted_default"] = (scored["default_probability"] >= 0.50).astype(int)
-    scored["risk_segment"] = pd.cut(
-        scored["default_probability"],
-        bins=RISK_BINS,
-        labels=RISK_LABELS,
-        include_lowest=True,
-    ).astype(str)
+    scored["predicted_default"] = (scored["default_probability"] >= threshold).astype(int)
 
-    loan_amount = pd.to_numeric(scored.get("loan_amnt", 0), errors="coerce").fillna(0.0)
-    scored["expected_loss"] = np.round(scored["default_probability"] * loan_amount, 2)
+    # Attach raw job and reason if available
+    if "job" in clean_df.columns:
+        scored["job"] = clean_df["job"].values
+    if "reason" in clean_df.columns:
+        scored["reason"] = clean_df["reason"].values
+
+    # Determine loan / EAD column
+    ead_col = "loan" if "loan" in scored.columns else ("loan_amnt" if "loan_amnt" in scored.columns else None)
+    if ead_col is not None:
+        scored["loan"] = pd.to_numeric(scored[ead_col], errors="coerce").fillna(0.0)
+
+    scored = calculate_portfolio_ecl(
+        scored, pd_col="default_probability", lgd_val=lgd_val, ead_col="loan" if "loan" in scored.columns else "loan_amnt"
+    )
+
+    scored["expected_loss"] = scored["ecl"]
     return scored
+
 
 
 def build_delinquency_trend(scored: pd.DataFrame) -> pd.DataFrame:
