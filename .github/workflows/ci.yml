@@ -31,9 +31,29 @@ jobs:
           mkdir -p data/raw
           curl -L -o data/raw/hmeq.csv "https://raw.githubusercontent.com/sassoftware/sas-viya-dmml-pipelines/master/data/hmeq.csv"
 
-      - name: Verify Backend Imports & Phase 5 Dashboard Integration
+      - name: Train Production XGBoost Model
+        run: |
+          python scripts/train_model.py --dataset data/raw/hmeq.csv --models xgboost
+
+      - name: Generate Model Comparison Benchmark Artifacts
+        run: |
+          python scripts/compare_models.py --dataset data/raw/hmeq.csv
+
+      - name: Generate TreeSHAP Explainability Artifacts
+        run: |
+          python scripts/verify_phase3.py
+
+      - name: Generate Portfolio ECL & Risk Analytics Artifacts
+        run: |
+          python scripts/run_portfolio_analysis.py
+
+      - name: Verify Phase 5 Dashboard & Artifact Integrity
         run: |
           python scripts/verify_phase5.py
+
+      - name: Verify Phase 6 API & Infrastructure
+        run: |
+          python scripts/verify_phase6.py
 
       - name: FastAPI API Smoke Test
         run: |
@@ -42,3 +62,4 @@ jobs:
       - name: Verify Streamlit App Syntax
         run: |
           python -c "import streamlit_app; print('Streamlit app imported successfully!')"
+
